@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using System.Runtime.InteropServices;
 
 namespace TsursportLauncher
 {
@@ -74,9 +75,12 @@ namespace TsursportLauncher
             catch { }
         }
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool DeleteFileW(string lpFileName);
+
         static void DeleteZone(string path)
         {
-            try { File.Delete(path + ":Zone.Identifier"); } catch { }
+            try { DeleteFileW(path + ":Zone.Identifier"); } catch { }
         }
 
         static string Quote(string s) { return "\"" + s + "\""; }

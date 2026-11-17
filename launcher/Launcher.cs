@@ -19,6 +19,7 @@ namespace TsursportLauncher
         [STAThread]
         static void Main(string[] args)
         {
+            UnblockSelf();
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var script = Path.Combine(baseDir, "tsursport_gui.py");
 
@@ -52,6 +53,30 @@ namespace TsursportLauncher
             {
                 Error("启动失败：" + e.Message + "\n\n可以改为直接运行本目录的 start_gui.bat。");
             }
+        }
+
+
+        /// <summary>启动即清除自身与同目录文件的“来自 Internet”标记，
+        /// 这样第一次点「仍要运行」之后，后续启动不再被 SmartScreen 拦截。</summary>
+        static void UnblockSelf()
+        {
+            try
+            {
+                var self = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                var dir = Path.GetDirectoryName(self);
+                DeleteZone(self);
+                if (Directory.Exists(dir))
+                {
+                    foreach (var f in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                        DeleteZone(f);
+                }
+            }
+            catch { }
+        }
+
+        static void DeleteZone(string path)
+        {
+            try { File.Delete(path + ":Zone.Identifier"); } catch { }
         }
 
         static string Quote(string s) { return "\"" + s + "\""; }

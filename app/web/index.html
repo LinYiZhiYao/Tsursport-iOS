@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Tsursport · iOS</title>
+<link rel="stylesheet" href="/web/leaflet.css" />
+<script src="/web/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#0b0e14; --bg2:#141923; --card:rgba(20,25,35,.95); --line:rgba(255,255,255,.10);
+    --txt:#eef2f8; --sub:#8d97aa; --acc:#3ddc97; --acc2:#38a3ff; --warn:#ffb020; --err:#ff6b6b;
+    --seg:rgba(255,255,255,.07); --seg-on:rgba(61,220,151,.18); --seg-on-txt:#3ddc97;
+    --glass:rgba(18,22,31,.92); --glass-line:rgba(255,255,255,.14);
+    --radius:18px;
+  }
+  body.light{
+    --bg:#eef2f7; --bg2:#ffffff; --card:rgba(255,255,255,.96); --line:rgba(15,20,30,.10);
+    --txt:#0f141e; --sub:#647082; --seg:rgba(15,20,30,.055); --seg-on:rgba(61,220,151,.22); --seg-on-txt:#0b875b;
+    --glass:rgba(255,255,255,.94); --glass-line:rgba(15,20,30,.12);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei UI",sans-serif}
+
+  /* 布局框架：窄屏移动布局 vs 宽屏桌面分栏 */
+  #app{position:relative;width:100%;height:100%;display:flex}
+  #mapWrap{position:relative;flex:1;height:100%;min-width:0}
+  #map{position:absolute;inset:0;background:var(--bg)}
+  #map.map-dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(1.06) saturate(.85)}
+
+  /* 地图悬浮顶部栏 */
+  #mapTop{position:absolute;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:850;
+    display:flex;align-items:center;gap:8px;pointer-events:none;flex-wrap:wrap}
+  .fab{pointer-events:auto;height:38px;min-width:38px;padding:0 13px;border-radius:999px;
+    border:1px solid var(--glass-line);background:var(--glass);color:var(--txt);font-size:13px;font-weight:700;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap;
+    box-shadow:0 4px 14px rgba(0,0,0,.18);font-family:inherit}
+  .fab.round{width:38px;padding:0;font-size:16px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--err);display:inline-block;flex-shrink:0}
+  .dot.ok{background:var(--acc)} .dot.warn{background:var(--warn)}
+  .chips{pointer-events:auto;display:flex;gap:6px;margin-left:auto}
+  .chip{display:flex;align-items:baseline;gap:3px;padding:7px 11px;border-radius:999px;
+    border:1px solid var(--glass-line);background:var(--glass);
+    box-shadow:0 4px 14px rgba(0,0,0,.16);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .chip b{font-size:13.5px;font-weight:800}
+  .chip i{font-style:normal;font-size:10px;color:var(--sub);font-weight:700}
+
+  #mapCoordBar{position:absolute;left:12px;bottom:14px;z-index:840;pointer-events:auto;
+    background:var(--glass);border:1px solid var(--glass-line);
+    padding:6px 12px;border-radius:12px;font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;
+    display:flex;align-items:center;gap:8px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+
+  /* 控制侧栏（桌面右侧常驻，移动端变底部抽屉） */
+  #panel{width:418px;height:100%;background:var(--bg2);border-left:1px solid var(--line);
+    display:flex;flex-direction:column;z-index:900;overflow:hidden}
+  #grip{display:none}
+  .pScroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 14px calc(16px + env(safe-area-inset-bottom))}
+  .pScroll::-webkit-scrollbar, .mBody::-webkit-scrollbar, .logBox::-webkit-scrollbar{width:5px;height:5px}
+  .pScroll::-webkit-scrollbar-thumb, .mBody::-webkit-scrollbar-thumb, .logBox::-webkit-scrollbar-thumb{
+    background:rgba(127,127,127,.28);border-radius:4px}
+
+  .pHead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .logo{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--acc2),var(--acc));
+    color:#05140d;font-weight:900;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .pTitle{min-width:0;flex:1}
+  .pHead h1{margin:0;font-size:16px;font-weight:800;white-space:nowrap}
+  .pHead small{display:block;font-size:11px;color:var(--sub);white-space:nowrap}
+  .pTools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+  .iconBtn{border:1px solid var(--line);background:var(--seg);color:var(--txt);white-space:nowrap;flex-shrink:0;
+    height:32px;padding:0 10px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+    display:inline-flex;align-items:center;justify-content:center;gap:4px}
+  .iconBtn:hover{border-color:rgba(127,127,127,.35)}
+
+  .devBanner{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:13px;
+    background:var(--seg);border:1px solid var(--line);margin-bottom:12px;cursor:pointer;font-size:12px}
+  .devBanner .meta{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .devBanner .act{color:var(--acc2);font-weight:700;font-size:11.5px;flex-shrink:0}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .statBox{background:var(--seg);border-radius:14px;padding:10px 8px;text-align:center;font-variant-numeric:tabular-nums}
+  .statBox b{display:block;font-size:18px;font-weight:800}
+  .statBox span{font-size:10.5px;color:var(--sub)}
+
+  .bar{height:6px;border-radius:6px;background:var(--seg);overflow:hidden;margin:8px 0 6px}
+  .bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .4s}
+  .statusRow{display:flex;align-items:flex-start;justify-content:space-between;font-size:11.5px;color:var(--sub);margin-bottom:12px;gap:8px;line-height:1.45}
+  .statusRow span:first-child{flex:1;word-break:break-word}
+  .statusRow span:last-child{flex-shrink:0}
+
+  .sec{background:var(--seg);border-radius:16px;padding:12px 13px;margin-bottom:10px}
+  .row{display:flex;align-items:center;gap:10px}
+  .row + .row{margin-top:10px}
+  .lbl{font-size:12px;color:var(--sub);min-width:54px;flex-shrink:0;white-space:nowrap}
+  .val{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .val small{font-size:11px;color:var(--sub);font-weight:600;margin-left:2px}
+
+  input[type=range]{-webkit-appearance:none;flex:1;height:28px;background:transparent;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px;background:linear-gradient(90deg,var(--acc2),var(--acc))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:#fff;border:3.5px solid var(--acc);margin-top:-8px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+
+  .pills{display:flex;gap:5px;flex-wrap:wrap;flex:1}
+  .pill{border:1px solid var(--line);background:transparent;color:var(--sub);font-size:11.5px;font-weight:600;
+    padding:5px 9px;border-radius:999px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .pill.on{background:var(--seg-on);color:var(--seg-on-txt);border-color:transparent}
+
+  .seg{display:flex;background:rgba(127,127,127,.14);border-radius:11px;padding:3px;flex:1;min-width:0}
+  .seg button{flex:1;border:0;background:transparent;color:var(--sub);font-size:11.5px;font-weight:700;
+    padding:7px 4px;border-radius:9px;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seg button.on{background:var(--seg-on);color:var(--seg-on-txt)}
+
+  .badge{font-size:10.5px;padding:3px 8px;border-radius:999px;font-weight:700;margin-left:auto;white-space:nowrap;flex-shrink:0}
+  .badge.ok{background:rgba(61,220,151,.16);color:var(--acc)}
+  .badge.warn{background:rgba(255,176,32,.18);color:var(--warn)}
+
+  .btnGrid{display:grid;gap:8px;margin-top:10px}
+  .btnGrid.two{grid-template-columns:1fr 1fr}
+  .btnGrid.four{grid-template-columns:repeat(4,1fr)}
+  button.btn{border:0;border-radius:13px;padding:12px 10px;font-size:14px;font-weight:800;font-family:inherit;
+    cursor:pointer;color:#04140d;background:linear-gradient(135deg,#5cf0b0,#2fc98a);white-space:nowrap;
+    box-shadow:0 6px 18px rgba(47,201,138,.22)}
+  button.btn:active{transform:scale(.98)}
+  button.btn:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
+  button.btn.pause{background:linear-gradient(135deg,#ffd479,#f0a92a);color:#1a1200;box-shadow:0 6px 16px rgba(240,169,42,.2)}
+  button.btn.danger{background:linear-gradient(135deg,#ff8b8b,#e04b4b);color:#fff;box-shadow:0 6px 16px rgba(224,75,75,.2)}
+  button.btn.ghost{background:var(--seg);color:var(--txt);border:1px solid var(--line);box-shadow:none;font-size:12.5px;padding:10px 8px;font-weight:700}
+
+  .logBox{background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:12px;padding:8px 10px;
+    font-family:Consolas,Menlo,monospace;font-size:11px;color:var(--sub);height:98px;overflow-y:auto;line-height:1.55;margin-top:10px;
+    white-space:pre-wrap;word-break:break-word}
+  body.light .logBox{background:rgba(15,20,30,.04)}
+
+  /* 弹窗（去掉全屏 backdrop-filter 避免 WebView2 软件重绘卡顿） */
+  .modal{position:fixed;inset:0;z-index:2000;display:none;background:rgba(8,11,16,.66);
+    align-items:center;justify-content:center;padding:16px}
+  .modal.show{display:flex}
+  .mCard{width:100%;max-width:550px;max-height:88vh;background:var(--bg2);border:1px solid var(--line);
+    border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.45)}
+  .mHead{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .mHead h3{margin:0;font-size:16px;font-weight:800;flex:1}
+  .mBody{padding:16px 18px;overflow-y:auto;font-size:13px;line-height:1.65}
+  .mBody input[type=text], .mBody select{background:var(--seg);border:1px solid var(--line);color:var(--txt);
+    border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;outline:none}
+
+  .checkItem{display:flex;gap:10px;padding:10px 12px;border-radius:12px;background:var(--seg);margin-bottom:8px}
+  .checkTag{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;height:fit-content;flex-shrink:0}
+  .checkTag.OK{background:rgba(61,220,151,.18);color:var(--acc)}
+  .checkTag.WARN{background:rgba(255,176,32,.2);color:var(--warn)}
+  .checkTag.FAIL{background:rgba(255,107,107,.2);color:var(--err)}
+  .checkTag.na,.checkTag.n\/a,.checkTag.\?{background:rgba(127,127,127,.2);color:var(--sub)}
+
+  .alertBox{background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.35);border-radius:14px;
+    padding:12px;margin-bottom:12px;font-size:12.5px}
+  .codeLine{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.25);padding:7px 10px;border-radius:9px;
+    font-family:Consolas,monospace;font-size:11.5px;margin-top:6px;overflow-x:auto}
+  body.light .codeLine{background:rgba(15,20,30,.07)}
+
+  .qrWrap{display:flex;align-items:center;gap:14px;background:var(--seg);border-radius:14px;padding:12px;margin-top:10px}
+  #qrImg{width:112px;height:112px;border-radius:10px;background:#fff;flex-shrink:0}
+
+  .presetRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:11px;background:var(--seg);margin-top:6px}
+  .presetRow span{flex:1;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* 引导向导 */
+  .wizSteps{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
+  .wizTab{border:1px solid var(--line);background:var(--seg);color:var(--sub);border-radius:11px;padding:7px 4px;
+    font-size:11px;font-weight:700;text-align:center;cursor:pointer;font-family:inherit;line-height:1.3}
+  .wizTab.active{border-color:var(--acc2);color:var(--txt);background:rgba(56,163,255,.14)}
+  .wizTab.done{border-color:rgba(61,220,151,.45);color:var(--acc)}
+  .wizCard{background:var(--seg);border:1px solid var(--line);border-radius:15px;padding:14px;margin-bottom:12px}
+  .wizStatus{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;font-size:12.5px;
+    font-weight:700;margin-bottom:10px}
+  .wizStatus.ok{background:rgba(61,220,151,.16);color:var(--acc)}
+  .wizStatus.warn{background:rgba(255,176,32,.16);color:var(--warn)}
+  .wizStatus.err{background:rgba(255,107,107,.16);color:var(--err)}
+  .wizFoot{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line)}
+  .chkRow{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border-radius:11px;background:var(--seg);
+    margin-bottom:7px;cursor:pointer;font-size:12.5px;line-height:1.55}
+  .chkRow input{margin-top:3px;accent-color:var(--acc)}
+
+  /* 移动端自适应：变为底部可拖拽卡片 */
+  @media (max-width: 879px){
+    #app{display:block}
+    #mapWrap{position:absolute;inset:0}
+    #mapCoordBar{display:none}
+    #panel{position:absolute;left:0;right:0;bottom:0;width:auto;height:auto;max-height:74vh;border-left:0;
+      border-top:1px solid var(--line);border-radius:22px 22px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.35);
+      transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+    #panel.collapsed{transform:translateY(calc(100% - 134px))}
+    #grip{display:flex;justify-content:center;padding:8px 0 2px;cursor:pointer;touch-action:none}
+    #grip span{width:42px;height:4px;border-radius:4px;background:rgba(127,127,127,.4)}
+    .pScroll{max-height:calc(74vh - 20px);padding-top:4px}
+    .chips{display:flex}
+  }
+  @media (min-width: 880px){
+    .chips.mobileOnly{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="mapWrap">
+    <div id="map"></div>
+    <div id="mapTop">
+      <button class="fab" id="campusBtn" title="回到学校中心">T 校园</button>
+      <button class="fab" id="mapStyleBtn" title="切换底图样式">底图：标准</button>
+      <div class="chips mobileOnly">
+        <div class="chip"><b id="mDone">0</b><i>m</i></div>
+        <div class="chip"><b id="mPace">--</b></div>
+        <div class="chip"><b id="mState">待机</b></div>
+      </div>
+      <button class="fab round" id="locBtn" title="定位到当前模拟点" style="margin-left:auto">◎</button>
+    </div>
+    <div id="mapCoordBar">
+      <span id="coordText">点击地图依次添加路线点 · 拖动标记微调 · 点击标记可删点或瞬移</span>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <div id="grip"><span></span></div>
+    <div class="pScroll">
+      <div class="pHead">
+        <div class="logo">T</div>
+        <div class="pTitle">
+          <h1>Tsursport iOS</h1>
+          <small>免越狱系统级定位模拟</small>
+        </div>
+        <button class="iconBtn" id="setOpenBtn" title="设置与预设">⚙ 设置</button>
+        <button class="iconBtn" id="aboutOpenBtn" title="使用须知">?</button>
+      </div>
+      <div class="pTools">
+        <button class="iconBtn" id="mockToggleBtn" title="无真机时切换虚拟 iPhone 演练模式">演练模式</button>
+        <button class="iconBtn" id="wizOpenBtn" title="新手配置向导">配置向导</button>
+        <button class="iconBtn" id="qrOpenBtn" title="手机扫码遥控">手机遥控</button>
+      </div>
+
+      <div class="devBanner" id="devBanner">
+        <span class="dot" id="devDot"></span>
+        <span class="meta" id="devSummary">正在检测 iPhone 连接…</span>
+        <span class="act">诊断 ›</span>
+      </div>
+
+      <div class="stats">
+        <div class="statBox"><b id="sDone">0</b><span>已跑 (m)</span></div>
+        <div class="statBox"><b id="sTime">00:00</b><span>用时</span></div>
+        <div class="statBox"><b id="sPace">6'25"</b><span>配速 /km</span></div>
+      </div>
+
+      <div class="bar"><div id="progBar"></div></div>
+      <div class="statusRow">
+        <span id="statusMsg">待机</span>
+        <span id="routeMeta">0 点 · 单圈 0 m</span>
+      </div>
+
+      <div class="sec">
+        <div class="row">
+          <span class="lbl">速度</span>
+          <input id="speedRange" type="range" min="8" max="150" step="1" value="26" />
+          <span class="val" id="speedTxt">2.6<small>m/s</small></span>
+        </div>
+        <div class="row">
+          <span class="lbl">配速档</span>
+          <div class="pills" id="pacePresets">
+            <button class="pill" data-v="1.9">快走 1.9</button>
+            <button class="pill on" data-v="2.6">慢跑 2.6</button>
+            <button class="pill" data-v="3.1">正常跑 3.1</button>
+          </div>
+          <span class="badge ok" id="paceValid">校内区间</span>
+        </div>
+        <div class="row">
+          <span class="lbl">循环</span>
+          <div class="seg" id="loopSeg">
+            <button data-loop="pingpong" class="on">往返</button>
+            <button data-loop="circle">环形</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="lbl">目标</span>
+          <div class="pills" id="targetPills">
+            <button class="pill on" data-t="0">不限</button>
+            <button class="pill" data-t="2000">2000m</button>
+            <button class="pill" data-t="2500">2500m</button>
+            <button class="pill" data-t="3000">3000m</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="btnGrid two">
+        <button class="btn" id="goBtn">开始模拟</button>
+        <button class="btn ghost" id="clearGpsBtn">恢复真实定位</button>
+      </div>
+
+      <div class="btnGrid four">
+        <button class="btn ghost" id="undoBtn">撤销</button>
+        <button class="btn ghost" id="revBtn">反转</button>
+        <button class="btn ghost" id="wipeBtn">清空</button>
+        <button class="btn ghost" id="gpxImportBtn">导入GPX</button>
+      </div>
+      <input id="gpxFileInput" type="file" accept=".gpx,text/xml,application/gpx+xml" style="display:none" />
+
+      <div class="logBox" id="logBox">正在加载状态…</div>
+    </div>
+  </aside>
+</div>
+
+<!-- 上手配置向导弹窗 -->
+<div class="modal" id="wizardModal">
+  <div class="mCard" style="max-width:600px">
+    <div class="mHead">
+      <h3>🧭 Tsursport iOS 上手配置向导</h3>
+      <button class="iconBtn" id="wizReprobeBtn">刷新检测</button>
+      <button class="iconBtn" data-close="wizardModal">✕</button>
+    </div>
+    <div class="mBody">
+      <div class="wizSteps" id="wizTabs">
+        <button class="wizTab active" data-step="0">1. 驱动</button>
+        <button class="wizTab" data-step="1">2. 信任</button>
+        <button class="wizTab" data-step="2">3. 隧道</button>
+        <button class="wizTab" data-step="3">4. 遥控</button>
+        <button class="wizTab" data-step="4">5. 核对</button>
+      </div>
+      <div id="wizBody"></div>
+    </div>
+    <div class="wizFoot">
+      <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--sub);cursor:pointer;margin-right:auto">
+        <input type="checkbox" id="wizDontAuto" /> 不再自动弹出
+      </label>
+      <button class="btn ghost" id="wizPrevBtn" style="flex:0 0 82px;padding:9px">上一步</button>
+      <button class="btn" id="wizNextBtn" style="flex:0 0 116px;padding:9px;font-size:13px">下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设备连接与体检弹窗 -->
+<div class="modal" id="diagModal">
+  <div class="mCard">
+    <div class="mHead">
+      <h3>iPhone 连接与环境诊断</h3>
+      <button class="iconBtn" id="diagRefreshBtn">重新体检</button>
+      <button class="iconBtn" data-close="diagModal">✕</button>
+    </div>
+    <div class="mBody">
+      <div id="usbmuxTip" class="alertBox" style="display:none">
+        <b>未检测到 Apple 移动设备服务 (usbmuxd)</b><br>
+        Windows 必须安装 Apple 官方 USB 驱动服务才能通过数据线识别 iPhone。在 PowerShell 执行下方命令安装最轻量驱动包（约 50MB，无需装完整 iTunes），或在微软商店搜索安装「Apple 设备」：
+        <div class="codeLine">
+          <span style="flex:1">winget install Apple.AppleMobileDeviceSupport</span>
+          <button class="iconBtn" onclick="copyCmd('winget install Apple.AppleMobileDeviceSupport', this)">复制</button>
+        </div>
+      </div>
+
+      <div class="btnGrid two" style="margin-top:0;margin-bottom:12px">
+        <button class="btn ghost" id="openWizFromDiagBtn">🧭 打开配置向导</button>
+        <button class="btn ghost" id="preConnectBtn">预建立安全隧道</button>
+        <button class="btn ghost" id="revealDevBtn">显示开发者模式开关</button>
+        <button class="btn ghost" id="enableWifiBtn">开启 Wi-Fi 无线调试</button>
+        <button class="btn ghost" id="disconnectBtn" style="grid-column:span 2">断开并清理会话</button>
+      </div>
+
+      <div id="doctorList"><div style="color:var(--sub)">点击右上角「重新体检」运行全链路检查…</div></div>
+
+      <div style="margin-top:14px;font-weight:800">📱 手机 Safari 遥控（加到主屏幕可全屏）</div>
+      <div class="qrWrap">
+        <img id="qrImg" alt="QR" />
+        <div style="flex:1;min-width:0">
+          <div id="lanUrls" style="font-size:12px"></div>
+          <div id="fwStatus" style="font-size:11.5px;color:var(--sub);margin-top:6px"></div>
+          <button class="iconBtn" id="fwFixBtn" style="margin:6px 0 0 0;display:none">管理员放行端口</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置与路线预设弹窗 -->
+<div class="modal" id="setModal">
+  <div class="mCard">
+    <div class="mHead">
+      <h3>高级设置与路线管理</h3>
+      <button class="iconBtn" data-close="setModal">✕</button>
+    </div>
+    <div class="mBody">
+      <div style="font-weight:700;margin-bottom:6px">模拟仿真参数</div>
+      <div class="sec">
+        <div class="row">
+          <span class="lbl">速度抖动</span>
+          <div class="seg" id="jitSeg">
+            <button data-j="1" class="on">自然 ±8%</button>
+            <button data-j="0">匀速</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="lbl">轨迹漂移</span>
+          <div class="seg" id="driftSeg">
+            <button data-d="0">关闭</button>
+            <button data-d="1" class="on">自然 ±1.5m</button>
+            <button data-d="2">高仿真 ±3m</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="lbl">注入频率</span>
+          <div class="seg" id="hzSeg">
+            <button data-hz="2" class="on">2 Hz (平滑)</button>
+            <button data-hz="1">1 Hz (省电)</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-weight:700;margin:12px 0 6px">界面与坐标</div>
+      <div class="sec">
+        <div class="row">
+          <span class="lbl">主题</span>
+          <div class="seg" id="themeSeg">
+            <button data-t="dark" class="on">深色</button>
+            <button data-t="light">浅色</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="lbl">地图</span>
+          <div class="seg" id="mapSeg">
+            <button data-m="std" class="on">标准</button>
+            <button data-m="dark">夜间</button>
+            <button data-m="sat">卫星+路网</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="lbl">坐标核对</span>
+          <div class="seg" id="bdSeg">
+            <button data-b="0" class="on">GCJ-02 (高德)</button>
+            <button data-b="1">对齐百度 BD-09</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-weight:700;margin:12px 0 6px">坐标跳转 / 手动加点</div>
+      <div class="sec">
+        <div class="row">
+          <input type="text" id="coordInput" placeholder="输入 lat, lng（如 39.261826, 117.355648）" style="flex:1" />
+          <select id="coordCrs">
+            <option value="gcj">GCJ-02</option>
+            <option value="wgs">WGS-84</option>
+            <option value="bd">BD-09</option>
+          </select>
+        </div>
+        <div class="btnGrid two">
+          <button class="btn ghost" id="coordJumpBtn">跳转视野</button>
+          <button class="btn ghost" id="coordAddBtn">添加到路线</button>
+        </div>
+      </div>
+
+      <div style="font-weight:700;margin:12px 0 6px">已保存路线预设</div>
+      <div class="sec">
+        <div class="row">
+          <input type="text" id="presetNameInput" placeholder="输入新路线名称…" style="flex:1" />
+          <button class="btn ghost" id="presetSaveBtn">保存当前</button>
+        </div>
+        <div id="presetList"></div>
+      </div>
+
+      <div style="font-weight:700;margin:12px 0 6px">导入与导出</div>
+      <div class="btnGrid two">
+        <button class="btn ghost" id="exportGpxBtn">导出路线 (.gpx)</button>
+        <button class="btn ghost" id="exportPngBtn">导出轨迹长图 (.png)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 使用须知弹窗 -->
+<div class="modal" id="aboutModal">
+  <div class="mCard">
+    <div class="mHead">
+      <h3>Tsursport iOS · 使用须知</h3>
+      <button class="iconBtn" data-close="aboutModal">✕</button>
+    </div>
+    <div class="mBody">
+      <ol style="margin:0;padding-left:18px;line-height:1.9">
+        <li><b>工作原理</b>：电脑通过 Apple 开发者调试通道（<code>pymobiledevice3</code> + DTX）注入系统级定位，<b>不越狱、不签名、不在手机装 App</b>，且 App 侧无 Android 的 <code>isMock</code> 标记。</li>
+        <li><b>必备前置</b>：Windows 需安装 Apple 驱动服务（<code>Apple Mobile Device Support</code> 或微软商店「Apple 设备」/ iTunes）；iPhone 需开启「设置 → 隐私与安全性 → <b>开发者模式</b>」并插线点击「信任此电脑」。</li>
+        <li><b>必须保持连接</b>：模拟期间不可拔线或断网（否则定位立即回弹真实位置）；若锁屏后休眠断连，建议在「设置 → 显示与亮度 → 自动锁定」暂时设为更长时间或开启引导式访问。</li>
+        <li><b>配速与里程</b>：常规校园跑有效配速约 <code>3'30"–10'00"/km</code>（即 <code>1.7–4.7 m/s</code>），默认 <code>2.6 m/s (6'25"/km)</code>；到达目标里程后系统会保持锁定终点，请在支付宝完成结算/打卡后再点「恢复真实定位」。</li>
+        <li><b>防止支付宝覆盖定位</b>：高德/支付宝 SDK 会结合附近 Wi-Fi 反查定位，跑前建议<b>关闭手机 Wi-Fi（用 4G/5G 移动数据）</b>，并强杀支付宝后重新打开再开始模拟。</li>
+        <li><b>重要边界</b>：iOS 步频/运动传感器数据无法通过调试通道伪造，<b>人仍需真实摇晃/走动产生步数</b>；静止 0 步频或出电子围栏仍可能被风控复核判定异常。</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+window.TSURSPORT_READY = false;
+const $ = id => document.getElementById(id);
+const CAMPUS = [39.261826, 117.355648];
+const IS_DESKTOP = new URLSearchParams(location.search).get('desktop') === '1' || window.innerWidth >= 880;
+
+/* ---------- 坐标系工具（GCJ-02 / WGS-84 / BD-09） ---------- */
+const PI_ = Math.PI, AXIS = 6378245.0, EE = 0.00669342162296594323, BD_X_PI = PI_ * 3000.0 / 180.0;
+function outOfChina(lat, lng){ return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271; }
+function _tLat(x, y){
+  let r = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+  r += (20*Math.sin(6*x*PI_) + 20*Math.sin(2*x*PI_)) * 2/3;
+  r += (20*Math.sin(y*PI_) + 40*Math.sin(y/3*PI_)) * 2/3;
+  r += (160*Math.sin(y/12*PI_) + 320*Math.sin(y*PI_/30)) * 2/3;
+  return r;
+}
+function _tLng(x, y){
+  let r = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+  r += (20*Math.sin(6*x*PI_) + 20*Math.sin(2*x*PI_)) * 2/3;
+  r += (20*Math.sin(x*PI_) + 40*Math.sin(x/3*PI_)) * 2/3;
+  r += (150*Math.sin(x/12*PI_) + 300*Math.sin(x/30*PI_)) * 2/3;
+  return r;
+}
+function _delta(lat, lng){
+  let dLat = _tLat(lng - 105, lat - 35), dLng = _tLng(lng - 105, lat - 35);
+  const rad = lat / 180 * PI_;
+  let magic = 1 - EE * Math.sin(rad) ** 2;
+  const sm = Math.sqrt(magic);
+  dLat = (dLat * 180) / ((AXIS * (1 - EE)) / (magic * sm) * PI_);
+  dLng = (dLng * 180) / (AXIS / sm * Math.cos(rad) * PI_);
+  return [dLat, dLng];
+}
+function wgsToGcj(lat, lng){ if(outOfChina(lat,lng)) return [lat,lng]; const [dl,dn]=_delta(lat,lng); return [lat+dl,lng+dn]; }
+function gcjToWgs(lat, lng){ if(outOfChina(lat,lng)) return [lat,lng]; const [dl,dn]=_delta(lat,lng); return [lat-dl,lng-dn]; }
+function gcjToBd(lat, lng){
+  const z = Math.hypot(lng, lat) + 0.00002 * Math.sin(lat * BD_X_PI);
+  const t = Math.atan2(lat, lng) + 0.000003 * Math.cos(lng * BD_X_PI);
+  return [z * Math.sin(t) + 0.006, z * Math.cos(t) + 0.0065];
+}
+function bdToGcj(lat, lng){
+  const x = lng - 0.0065, y = lat - 0.006;
+  const z = Math.hypot(x, y) - 0.00002 * Math.sin(y * BD_X_PI);
+  const t = Math.atan2(y, x) - 0.000003 * Math.cos(x * BD_X_PI);
+  return [z * Math.sin(t), z * Math.cos(t)];
+}
+
+/* ---------- 地图初始化 ---------- */
+const map = L.map('map', {zoomControl: false, doubleClickZoom: false, attributionControl: false}).setView(CAMPUS, 16);
+if (IS_DESKTOP) L.control.zoom({position: 'bottomright'}).addTo(map);
+const TILE_LAYERS = {
+  std: () => L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {subdomains:'1234', maxZoom:19}),
+  dark: () => L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {subdomains:'1234', maxZoom:19}),
+  sat: () => L.layerGroup([
+    L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {subdomains:'1234', maxZoom:18}),
+    L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=8&x={x}&y={y}&z={z}', {subdomains:'1234', maxZoom:18, opacity:0.85})
+  ])
+};
+let activeTiles = null, mapMode = localStorage.getItem('tsur.ios.map') || 'std';
+function applyMapMode(mode){
+  mapMode = TILE_LAYERS[mode] ? mode : 'std';
+  if (activeTiles) map.removeLayer(activeTiles);
+  activeTiles = TILE_LAYERS[mapMode]().addTo(map);
+  if (activeTiles.bringToBack) activeTiles.bringToBack();
+  $('map').classList.toggle('map-dark', mapMode === 'dark');
+  const names = {std:'标准', dark:'夜间', sat:'卫星+路网'};
+  $('mapStyleBtn').textContent = '底图：' + names[mapMode];
+  document.querySelectorAll('#mapSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === mapMode));
+  localStorage.setItem('tsur.ios.map', mapMode);
+}
+applyMapMode(mapMode);
+
+/* ---------- 状态与路线图层 ---------- */
+let points = [];
+let presets = {};
+let alignBaidu = localStorage.getItem('tsur.ios.baidu') === '1';
+let curState = {state:'idle', playing:false, paused:false, connecting:false, pinned:false, finished:false,
+  speed:2.6, loop:'pingpong', target_m:0, done:0, total:0, elapsed:0, progress:0, jitter:true, drift:1, freq_hz:2,
+  message:'待机', device:{}};
+let isDraggingMarker = false;
+let localRouteVer = 0;
+let pendingSave = false;
+let suppressPollUiUntil = 0;
+
+const poly = L.polyline([], {color:'#3ddc97', weight:5, opacity:.92}).addTo(map);
+const closePoly = L.polyline([], {color:'#3ddc97', weight:3, opacity:.55, dashArray:'7 8'}).addTo(map);
+const markerLayer = L.layerGroup().addTo(map);
+const meMarker = L.circleMarker(CAMPUS, {radius:8, color:'#ffffff', weight:2.5, fillColor:'#38a3ff', fillOpacity:0, opacity:0}).addTo(map);
+
+function fmtCoord(lat, lng){
+  if (alignBaidu){ const b = gcjToBd(lat, lng); return `${b[0].toFixed(6)}, ${b[1].toFixed(6)} (BD-09)`; }
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)} (GCJ-02)`;
+}
+function ptsSig(arr){ return arr.map(p => p[0].toFixed(6)+','+p[1].toFixed(6)).join('|'); }
+function lockedEditing(){ return curState.playing || curState.paused || curState.connecting; }
+
+function redrawMap(pushServer = true){
+  poly.setLatLngs(points);
+  if (curState.loop === 'circle' && points.length >= 3) closePoly.setLatLngs([points[points.length-1], points[0]]);
+  else closePoly.setLatLngs([]);
+
+  markerLayer.clearLayers();
+  const locked = lockedEditing();
+  points.forEach((p, idx) => {
+    const color = idx === 0 ? '#3ddc97' : (idx === points.length - 1 ? '#ff6b6b' : '#38a3ff');
+    const icon = L.divIcon({
+      className: '',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+      html: `<div style="width:22px;height:22px;border-radius:50%;background:${color};border:2.5px solid #fff;
+        color:#06130d;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;
+        box-shadow:0 3px 10px rgba(0,0,0,.35)">${idx+1}</div>`
+    });
+    const m = L.marker(p, {icon, draggable: !locked});
+    m.on('dragstart', () => { isDraggingMarker = true; });
+    m.on('drag', e => {
+      const ll = e.target.getLatLng();
+      points[idx] = [ll.lat, ll.lng];
+      poly.setLatLngs(points);
+      if (curState.loop === 'circle' && points.length >= 3) closePoly.setLatLngs([points[points.length-1], points[0]]);
+    });
+    m.on('dragend', () => { isDraggingMarker = false; redrawMap(true); });
+    m.on('click', () => {
+      const pop = document.createElement('div');
+      pop.style.cssText = 'font-size:12px;line-height:1.6;min-width:165px';
+      pop.innerHTML = `<b>第 ${idx+1} 点</b><br><span style="color:#666">${fmtCoord(p[0],p[1])}</span><br>`;
+      const bPin = document.createElement('button');
+      bPin.textContent = '定身到此点';
+      bPin.style.cssText = 'margin-top:6px;margin-right:6px;padding:4px 8px;border:0;border-radius:6px;background:#38a3ff;color:#fff;font-weight:700;cursor:pointer';
+      bPin.onclick = () => { map.closePopup(); pinPoint(p[0], p[1]); };
+      pop.appendChild(bPin);
+      if (!locked) {
+        const bDel = document.createElement('button');
+        bDel.textContent = '删除此点';
+        bDel.style.cssText = 'margin-top:6px;padding:4px 8px;border:0;border-radius:6px;background:#ff6b6b;color:#fff;font-weight:700;cursor:pointer';
+        bDel.onclick = () => { map.closePopup(); points.splice(idx, 1); redrawMap(true); };
+        pop.appendChild(bDel);
+      }
+      m.bindPopup(pop).openPopup();
+    });
+    markerLayer.addLayer(m);
+  });
+
+  if (points.length) $('coordText').textContent = '末点: ' + fmtCoord(points[points.length-1][0], points[points.length-1][1]);
+  else $('coordText').textContent = '点击地图依次添加路线点 · 拖动标记微调 · 点击标记可删点或瞬移';
+
+  if (pushServer) pushConfig({points});
+}
+
+let lastClickTs = 0;
+map.on('click', e => {
+  if (lockedEditing()) return;
+  const now = Date.now();
+  if (now - lastClickTs < 180) return;
+  lastClickTs = now;
+  points.push([e.latlng.lat, e.latlng.lng]);
+  redrawMap(true);
+});
+
+/* ---------- API 通信 ---------- */
+async function api(path, body){
+  const opt = body === undefined ? {cache:'no-store'} : {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  };
+  const r = await fetch(path, opt);
+  return r.json();
+}
+let cfgTimer = null;
+function pushConfig(patch, immediate=false){
+  clearTimeout(cfgTimer);
+  suppressPollUiUntil = Date.now() + 1200;
+  if (patch.points) pendingSave = true;
+  const send = () => api('/api/route', patch).then(st => {
+    pendingSave = false;
+    if (st && st.route_ver) localRouteVer = st.route_ver;
+    applyStatus(st);
+  }).catch(()=>{ pendingSave = false; });
+  if (immediate) send();
+  else cfgTimer = setTimeout(send, 220);
+}
+async function pinPoint(lat, lng){
+  const st = await api('/api/pin', {lat, lng});
+  applyStatus(st);
+}
+
+/* ---------- 界面渲染 ---------- */
+function paceStr(v){
+  if (v <= 0.05) return '--';
+  const s = 1000 / v;
+  let m = Math.floor(s / 60), sec = Math.round(s % 60);
+  if (sec === 60){ m++; sec = 0; }
+  return `${m}'${String(sec).padStart(2,'0')}"`;
+}
+function fmtTime(sec){
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+let lastLogsStr = '';
+let lastMeKey = '';
+
+function applyStatus(st){
+  if (!st || st.error) return;
+  curState = st;
+  $('sDone').textContent = Math.round(st.done || 0);
+  $('mDone').textContent = Math.round(st.done || 0);
+  $('sTime').textContent = fmtTime(st.elapsed || 0);
+  $('sPace').textContent = st.pace || '--';
+  $('mPace').textContent = st.pace || '--';
+  $('progBar').style.width = ((st.progress || 0) * 100) + '%';
+  $('statusMsg').textContent = st.message || '待机';
+  const tgt = st.target_m > 0 ? ` · 目标 ${st.target_m} m` : '';
+  $('routeMeta').textContent = `${st.points_count} 点 · 单圈 ${Math.round(st.total)} m${tgt}`;
+
+  // 同步速度/开关（避免拖拽滑杆或刚修改配置时抢焦点）
+  if (Date.now() > suppressPollUiUntil) {
+    if (document.activeElement !== $('speedRange')) {
+      $('speedRange').value = Math.round((st.speed || 2.6) * 10);
+      updateSpeedBadge(st.speed || 2.6);
+    }
+    document.querySelectorAll('#loopSeg button').forEach(b => b.classList.toggle('on', b.dataset.loop === st.loop));
+    document.querySelectorAll('#targetPills button').forEach(b => b.classList.toggle('on', Number(b.dataset.t) === Number(st.target_m)));
+    document.querySelectorAll('#jitSeg button').forEach(b => b.classList.toggle('on', (b.dataset.j === '1') === !!st.jitter));
+    document.querySelectorAll('#driftSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === Number(st.drift)));
+    document.querySelectorAll('#hzSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.hz) === Math.round(st.freq_hz || 2)));
+  }
+
+  // 设备横幅 & 演练模式按钮
+  const dev = st.device || {};
+  const mBtn = $('mockToggleBtn');
+  if (dev.mock_mode) {
+    mBtn.textContent = '演练中';
+    mBtn.style.background = 'rgba(255,176,32,.22)';
+    mBtn.style.borderColor = 'rgba(255,176,32,.55)';
+    mBtn.style.color = 'var(--warn)';
+  } else {
+    mBtn.textContent = '演练模式';
+    mBtn.style.background = '';
+    mBtn.style.borderColor = '';
+    mBtn.style.color = '';
+  }
+  const dot = $('devDot');
+  dot.classList.remove('ok', 'warn');
+  if (dev.mock_mode) {
+    dot.classList.add('warn');
+    $('devSummary').textContent = dev.connected
+      ? '[演练模式] 虚拟 iPhone 17 Pro · 仅本地仿真'
+      : '[演练模式] 虚拟设备待命（无真机也可跑全流程）';
+  } else if (dev.connected) {
+    dot.classList.add('ok');
+    $('devSummary').textContent = `已连接：${dev.active_name} (iOS ${dev.active_ios} · ${dev.tunnel_mode})`;
+  } else if (dev.devices && dev.devices.length) {
+    const d0 = dev.devices[0];
+    dot.classList.add(d0.paired && d0.dev_mode !== false ? 'ok' : 'warn');
+    $('devSummary').textContent = dev.hint || `已发现 ${d0.name}`;
+  } else {
+    $('devSummary').textContent = dev.hint || '未检测到 iPhone（点此排查）';
+  }
+  $('usbmuxTip').style.display = (!dev.mock_mode && dev.usbmux_ok === false) ? 'block' : 'none';
+
+  // 主按钮状态
+  const go = $('goBtn');
+  go.classList.remove('pause', 'danger');
+  if (st.connecting) { go.textContent = '连接中…'; go.disabled = true; $('mState').textContent = '连接中'; }
+  else if (st.playing) { go.textContent = '暂停'; go.classList.add('pause'); go.disabled = false; $('mState').textContent = '运行中'; }
+  else if (st.paused) { go.textContent = '继续模拟'; go.disabled = false; $('mState').textContent = '已暂停'; }
+  else if (st.finished) { go.textContent = '重新开始'; go.disabled = false; $('mState').textContent = '已完成'; }
+  else { go.textContent = '开始模拟'; go.disabled = points.length < 2; $('mState').textContent = st.pinned ? '已定身' : '待机'; }
+
+  const locked = lockedEditing();
+  $('undoBtn').disabled = locked || points.length === 0;
+  $('revBtn').disabled = locked || points.length < 2;
+  $('wipeBtn').disabled = locked || points.length === 0;
+
+  // 当前定位蓝点（仅坐标或可见性变化时才重绘 Leaflet）
+  const showMe = Boolean(st.lat && st.lng && (st.playing || st.paused || st.pinned || st.finished));
+  const meKey = showMe ? `${st.lat},${st.lng},1` : '0';
+  if (meKey !== lastMeKey) {
+    lastMeKey = meKey;
+    if (showMe) {
+      meMarker.setLatLng([st.lat, st.lng]).setStyle({opacity:1, fillOpacity:.95});
+      if (st.playing && !map.getBounds().contains([st.lat, st.lng])) map.panTo([st.lat, st.lng], {animate:true});
+      $('coordText').textContent = '当前注入: ' + fmtCoord(st.lat, st.lng);
+    } else {
+      meMarker.setStyle({opacity:0, fillOpacity:0});
+    }
+  }
+
+  // 日志（内容变化时才重绘 DOM，避免每秒触发回流导致弹窗卡顿）
+  if (st.logs) {
+    const joined = st.logs.join('\n');
+    if (joined !== lastLogsStr) {
+      lastLogsStr = joined;
+      const box = $('logBox');
+      const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 24;
+      box.textContent = joined;
+      if (atBottom) box.scrollTop = box.scrollHeight;
+    }
+  }
+}
+
+function updateSpeedBadge(v){
+  $('speedTxt').innerHTML = v.toFixed(1) + '<small>m/s</small>';
+  $('sPace').textContent = paceStr(v);
+  document.querySelectorAll('#pacePresets button').forEach(b => b.classList.toggle('on', Math.abs(parseFloat(b.dataset.v) - v) < 0.06));
+  const valid = v >= 1.67 && v <= 4.76; // 3'30" - 10'00"/km
+  const b = $('paceValid');
+  b.className = 'badge ' + (valid ? 'ok' : 'warn');
+  b.textContent = valid ? '校内有效配速' : (v < 1.67 ? '配速偏慢' : '配速偏快');
+}
+
+/* ---------- 控件事件 ---------- */
+$('speedRange').oninput = () => {
+  const v = $('speedRange').value / 10;
+  updateSpeedBadge(v);
+  pushConfig({speed: v});
+};
+document.querySelectorAll('#pacePresets button').forEach(b => b.onclick = () => {
+  const v = parseFloat(b.dataset.v);
+  $('speedRange').value = Math.round(v * 10);
+  updateSpeedBadge(v);
+  pushConfig({speed: v}, true);
+});
+document.querySelectorAll('#loopSeg button').forEach(b => b.onclick = () => {
+  curState.loop = b.dataset.loop;
+  document.querySelectorAll('#loopSeg button').forEach(x => x.classList.toggle('on', x === b));
+  redrawMap(false);
+  pushConfig({loop: curState.loop}, true);
+});
+document.querySelectorAll('#targetPills button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#targetPills button').forEach(x => x.classList.toggle('on', x === b));
+  pushConfig({target_m: Number(b.dataset.t)}, true);
+});
+document.querySelectorAll('#jitSeg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#jitSeg button').forEach(x => x.classList.toggle('on', x === b));
+  pushConfig({jitter: b.dataset.j === '1'}, true);
+});
+document.querySelectorAll('#driftSeg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#driftSeg button').forEach(x => x.classList.toggle('on', x === b));
+  pushConfig({drift: Number(b.dataset.d)}, true);
+});
+document.querySelectorAll('#hzSeg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#hzSeg button').forEach(x => x.classList.toggle('on', x === b));
+  pushConfig({freq_hz: Number(b.dataset.hz)}, true);
+});
+
+$('goBtn').onclick = async () => {
+  const ep = curState.playing ? '/api/pause' : '/api/start';
+  applyStatus(await api(ep));
+};
+$('clearGpsBtn').onclick = async () => applyStatus(await api('/api/clear'));
+$('undoBtn').onclick = () => { if (!lockedEditing() && points.length){ points.pop(); redrawMap(true); } };
+$('revBtn').onclick = () => { if (!lockedEditing() && points.length >= 2){ points.reverse(); redrawMap(true); } };
+$('wipeBtn').onclick = () => { if (!lockedEditing()){ points = []; redrawMap(true); } };
+
+$('campusBtn').onclick = () => map.flyTo(CAMPUS, 16, {duration:0.5});
+$('locBtn').onclick = () => {
+  if (curState.lat && (curState.playing || curState.paused || curState.pinned || curState.finished)) map.flyTo([curState.lat, curState.lng], 17, {duration:0.5});
+  else if (points.length) map.fitBounds(L.latLngBounds(points), {padding:[40,40]});
+  else map.flyTo(CAMPUS, 16, {duration:0.5});
+};
+$('mapStyleBtn').onclick = () => {
+  const order = ['std', 'dark', 'sat'];
+  applyMapMode(order[(order.indexOf(mapMode) + 1) % order.length]);
+};
+
+/* ---------- GPX 导入 / 导出 / 长图导出 ---------- */
+$('gpxImportBtn').onclick = async () => {
+  if (window.pywebview && window.pywebview.api) {
+    const res = await window.pywebview.api.pick_gpx();
+    if (res && res.ok) {
+      points = res.points;
+      redrawMap(false);
+      map.fitBounds(L.latLngBounds(points), {padding:[40,40]});
+    } else if (res && res.error) alert('导入失败：' + res.error);
+  } else {
+    $('gpxFileInput').click();
+  }
+};
+$('gpxFileInput').onchange = ev => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = async () => {
+    const res = await api('/api/import_gpx', {gpx: String(fr.result)});
+    if (res.error) alert('导入失败：' + res.error);
+    else {
+      points = res.points;
+      if (res.status && res.status.route_ver) localRouteVer = res.status.route_ver;
+      redrawMap(false);
+      map.fitBounds(L.latLngBounds(points), {padding:[40,40]});
+      if (res.status) applyStatus(res.status);
+    }
+  };
+  fr.readAsText(f);
+  ev.target.value = '';
+};
+
+$('exportGpxBtn').onclick = async () => {
+  if (points.length < 2) return alert('路线不足两个点');
+  const r = await fetch('/api/export_gpx');
+  const text = await r.text();
+  if (window.pywebview && window.pywebview.api) {
+    await window.pywebview.api.save_gpx('tsursport-route.gpx', text);
+  } else {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], {type:'application/gpx+xml'}));
+    a.download = 'tsursport-route.gpx';
+    a.click();
+  }
+};
+
+$('exportPngBtn').onclick = async () => {
+  if (points.length < 2) return alert('至少需要 2 个路线点');
+  const W = 1080, H = 1350, pad = 90;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, '#0b0e14'); g.addColorStop(1, '#142234');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#3ddc97'; x.font = 'bold 54px sans-serif'; x.fillText('Tsursport iOS', pad, pad + 40);
+  x.fillStyle = 'rgba(255,255,255,.45)'; x.font = '24px sans-serif'; x.fillText('ROUTE RECORD', pad, pad + 82);
+
+  const lats = points.map(p=>p[0]), lngs = points.map(p=>p[1]);
+  const minLa = Math.min(...lats), maxLa = Math.max(...lats), minLo = Math.min(...lngs), maxLo = Math.max(...lngs);
+  const w = W - pad*2, h = H - pad*2 - 520;
+  const sc = Math.min(w / Math.max(1e-6, maxLo - minLo), h / Math.max(1e-6, maxLa - minLa));
+  const cx = pad + (w - (maxLo - minLo)*sc)/2, cy = pad + 160 + (h - (maxLa - minLa)*sc)/2;
+  const px = p => cx + (p[1]-minLo)*sc, py = p => cy + (maxLa-p[0])*sc;
+  x.strokeStyle = 'rgba(61,220,151,.25)'; x.lineWidth = 22; x.lineJoin = 'round';
+  x.beginPath(); points.forEach((p,i)=> i?x.lineTo(px(p),py(p)):x.moveTo(px(p),py(p))); x.stroke();
+  x.strokeStyle = '#3ddc97'; x.lineWidth = 8;
+  x.beginPath(); points.forEach((p,i)=> i?x.lineTo(px(p),py(p)):x.moveTo(px(p),py(p))); x.stroke();
+  [points[0], points[points.length-1]].forEach((p,i)=>{
+    x.fillStyle = i ? '#ff6b6b' : '#38a3ff';
+    x.beginPath(); x.arc(px(p), py(p), 14, 0, 7); x.fill();
+    x.strokeStyle = '#fff'; x.lineWidth = 4; x.stroke();
+  });
+  const y0 = H - 420;
+  const items = [['累计里程', ((curState.done || curState.total || 0)/1000).toFixed(2)+' km'],
+    ['用时', fmtTime(curState.elapsed || 0)], ['配速', curState.pace || '--'], ['路线点', String(points.length)]];
+  items.forEach((it,i)=>{
+    const xx = pad + (i%2)*(W-pad*2)/2, yy = y0 + 90 + Math.floor(i/2)*130;
+    x.fillStyle = 'rgba(255,255,255,.45)'; x.font = '26px sans-serif'; x.fillText(it[0], xx, yy);
+    x.fillStyle = '#fff'; x.font = 'bold 52px sans-serif'; x.fillText(it[1], xx, yy + 58);
+  });
+  const url = c.toDataURL('image/png');
+  if (window.pywebview && window.pywebview.api) await window.pywebview.api.save_png('tsursport-track.png', url);
+  else { const a = document.createElement('a'); a.href = url; a.download = 'tsursport-track.png'; a.click(); }
+};
+
+/* ---------- 预设路线与坐标跳转 ---------- */
+function renderPresets(){
+  const box = $('presetList');
+  box.innerHTML = '';
+  Object.keys(presets).forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'presetRow';
+    const sp = document.createElement('span');
+    sp.textContent = `${name} (${presets[name].length}点)`;
+    const bLoad = document.createElement('button');
+    bLoad.className = 'iconBtn'; bLoad.textContent = '载入';
+    bLoad.onclick = async () => {
+      const r = await api('/api/presets', {action:'load', name});
+      if (r.status && r.status.route_ver) localRouteVer = r.status.route_ver;
+      if (r.points){ points = r.points; redrawMap(false); map.fitBounds(L.latLngBounds(points), {padding:[40,40]}); }
+      if (r.status) applyStatus(r.status);
+      $('setModal').classList.remove('show');
+    };
+    const bDel = document.createElement('button');
+    bDel.className = 'iconBtn'; bDel.textContent = '删';
+    bDel.onclick = async () => {
+      const r = await api('/api/presets', {action:'delete', name});
+      if (r.presets){ presets = r.presets; renderPresets(); }
+    };
+    row.append(sp, bLoad, bDel);
+    box.appendChild(row);
+  });
+}
+$('presetSaveBtn').onclick = async () => {
+  const name = $('presetNameInput').value.trim();
+  if (!name) return alert('请输入路线名称');
+  const r = await api('/api/presets', {action:'save', name, points});
+  if (r.error) return alert(r.error);
+  presets = r.presets; renderPresets(); $('presetNameInput').value = '';
+};
+
+function parseCoordPair(){
+  const raw = $('coordInput').value.trim().replace(/[，\s]+/g, ',');
+  const parts = raw.split(',').map(Number).filter(n => !isNaN(n));
+  if (parts.length < 2) return null;
+  let [la, ln] = parts;
+  const crs = $('coordCrs').value;
+  if (crs === 'wgs') [la, ln] = wgsToGcj(la, ln);
+  else if (crs === 'bd') [la, ln] = bdToGcj(la, ln);
+  return [la, ln];
+}
+$('coordJumpBtn').onclick = () => {
+  const p = parseCoordPair();
+  if (!p) return alert('坐标格式无效，示例：39.261826, 117.355648');
+  map.flyTo(p, 17, {duration:0.5});
+  $('setModal').classList.remove('show');
+};
+$('coordAddBtn').onclick = () => {
+  const p = parseCoordPair();
+  if (!p) return alert('坐标格式无效');
+  if (lockedEditing()) return alert('运行中不能修改路线');
+  points.push(p); redrawMap(true); map.flyTo(p, 17, {duration:0.5});
+  $('setModal').classList.remove('show');
+};
+
+/* ---------- 弹窗、诊断与二维码 ---------- */
+async function copyCmd(txt, btn){
+  if (window.pywebview && window.pywebview.api) await window.pywebview.api.copy_text(txt);
+  else if (navigator.clipboard) await navigator.clipboard.writeText(txt).catch(()=>{});
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = '已复制';
+    setTimeout(() => btn.textContent = old, 1200);
+  }
+}
+async function openDiag(){
+  $('diagModal').classList.add('show');
+  await refreshDoctor();
+}
+async function refreshDoctor(){
+  $('doctorList').innerHTML = '<div style="color:var(--sub)">正在体检…</div>';
+  api('/api/netinfo').then(net => renderNetInfo(net)).catch(()=>{});
+  const doc = await api('/api/doctor');
+  $('doctorList').innerHTML = (doc.checks || []).map(c => `
+    <div class="checkItem">
+      <span class="checkTag ${c.status}">${c.status}</span>
+      <div>
+        <div><b>${c.title}</b>：${c.detail}</div>
+        ${c.hint ? `<div style="font-size:11.5px;color:var(--acc2)">建议：${c.hint}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+  if (doc.netinfo) renderNetInfo(doc.netinfo);
+}
+function renderNetInfo(net){
+  if (net && net.urls && net.urls.length) {
+    const primary = net.urls[0].url;
+    $('qrImg').src = '/api/qr.svg?url=' + encodeURIComponent(primary);
+    $('lanUrls').innerHTML = net.urls.slice(0, 3).map(u =>
+      `<div style="margin-bottom:3px"><a href="${u.url}" target="_blank" style="color:var(--acc2);text-decoration:none;font-weight:700">${u.url}</a> <span style="color:var(--sub)">(${u.adapter})</span></div>`
+    ).join('');
+    const fw = net.firewall || {};
+    $('fwStatus').textContent = '防火墙：' + (fw.detail || '');
+    $('fwFixBtn').style.display = (fw.ok === false && hasNativeApi()) ? 'inline-block' : 'none';
+  }
+}
+
+$('devBanner').onclick = () => {
+  const dev = curState.device || {};
+  if (!dev.usbmux_ok || !(dev.devices && dev.devices.length && dev.devices[0].paired)) openWizard();
+  else openDiag();
+};
+$('qrOpenBtn').onclick = openDiag;
+$('diagRefreshBtn').onclick = refreshDoctor;
+$('setOpenBtn').onclick = () => $('setModal').classList.add('show');
+$('aboutOpenBtn').onclick = () => $('aboutModal').classList.add('show');
+$('wizOpenBtn').onclick = () => openWizard();
+$('openWizFromDiagBtn').onclick = () => { $('diagModal').classList.remove('show'); openWizard(); };
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => {
+  $(b.dataset.close).classList.remove('show');
+  if (b.dataset.close === 'wizardModal') stopWizPoll();
+});
+document.querySelectorAll('.modal').forEach(m => m.onclick = e => {
+  if (e.target === m) {
+    m.classList.remove('show');
+    if (m.id === 'wizardModal') stopWizPoll();
+  }
+});
+
+/* ---------- 5步上手配置向导 ---------- */
+let wizStep = 0;
+let wizNet = null;
+let wizFeedback = '';
+let wizPollTimer = null;
+let wizBusy = false;
+let lastWizHtml = '';
+const wizChecklist = [false, false, false, false];
+const hasNativeApi = () => Boolean((window.pywebview && window.pywebview.api) || location.hostname === '127.0.0.1' || location.hostname === 'localhost');
+async function callHostAction(kind){
+  if (window.pywebview && window.pywebview.api) {
+    const map = {
+      install_driver: () => window.pywebview.api.install_apple_driver(),
+      start_amds: () => window.pywebview.api.start_amds_uac(),
+      open_store: () => window.pywebview.api.open_apple_store(),
+      firewall: () => window.pywebview.api.open_firewall_uac(),
+    };
+    if (map[kind]) return await map[kind]();
+  }
+  return await api('/api/host_action', { action: kind });
+}
+window.addEventListener('pywebviewready', () => {
+  if ($('wizardModal').classList.contains('show')) { lastWizHtml = ''; renderWizard(); }
+});
+
+function wizStepDone(){
+  const dev = curState.device || {};
+  const d0 = (dev.devices && dev.devices[0]) || null;
+  const s1 = !!dev.usbmux_ok;
+  const s2 = Boolean(s1 && d0 && d0.paired);
+  const s3 = Boolean(dev.connected || (s2 && d0 && d0.dev_mode !== false));
+  const s4 = Boolean(wizNet && wizNet.firewall && wizNet.firewall.ok);
+  const s5 = wizChecklist.every(Boolean);
+  return [s1, s2, s3, s4, s5];
+}
+
+function stopWizPoll(){
+  clearInterval(wizPollTimer);
+  wizPollTimer = null;
+}
+
+async function openWizard(forceStep){
+  $('wizardModal').classList.add('show');
+  $('wizDontAuto').checked = localStorage.getItem('tsur.ios.wizardHide') === '1';
+  wizFeedback = '';
+  if (typeof forceStep === 'number') {
+    wizStep = forceStep;
+  } else {
+    const done = wizStepDone();
+    wizStep = !done[0] ? 0 : (!done[1] ? 1 : (!done[2] ? 2 : 4));
+  }
+  renderWizard();
+  const [dev, net] = await Promise.all([
+    api('/api/device').catch(()=>null),
+    api('/api/netinfo').catch(()=>null),
+  ]);
+  if (dev) { curState.device = dev; applyStatus(curState); }
+  if (net) wizNet = net;
+  if (typeof forceStep !== 'number') {
+    const done2 = wizStepDone();
+    wizStep = !done2[0] ? 0 : (!done2[1] ? 1 : (!done2[2] ? 2 : 4));
+  }
+  renderWizard();
+  stopWizPoll();
+  wizPollTimer = setInterval(async () => {
+    if (!$('wizardModal').classList.contains('show')) { stopWizPoll(); return; }
+    if (wizBusy) return;
+    if (!curState.playing && !curState.connecting) {
+      const d = await api('/api/device').catch(()=>null);
+      if (d) { curState.device = d; applyStatus(curState); }
+    }
+    if (wizStep === 3) wizNet = await api('/api/netinfo').catch(()=>wizNet);
+    renderWizard();
+  }, 2500);
+}
+
+function renderWizard(){
+  const done = wizStepDone();
+  const labels = ['1. 驱动', '2. 信任', '3. 隧道', '4. 遥控', '5. 核对'];
+  document.querySelectorAll('#wizTabs .wizTab').forEach((tab, idx) => {
+    tab.classList.toggle('active', idx === wizStep);
+    tab.classList.toggle('done', done[idx]);
+    tab.textContent = (done[idx] ? '✓ ' : '') + labels[idx];
+  });
+
+  const dev = curState.device || {};
+  const amds = dev.amds || {};
+  const d0 = (dev.devices && dev.devices[0]) || null;
+  let html = '';
+
+  if (wizStep === 0) {
+    if (dev.usbmux_ok) {
+      html += `<div class="wizStatus ok">✓ Apple 移动设备服务 (usbmuxd) 已运行（${amds.source || '就绪'}）</div>`;
+    } else if (amds.installed && !amds.running) {
+      html += `<div class="wizStatus warn">⚠ 检测到已安装 ${amds.source}，但系统服务当前未运行</div>`;
+    } else {
+      html += `<div class="wizStatus err">✕ 未检测到 Apple 移动设备驱动服务，Windows 还无法识别 iPhone 数据线</div>`;
+    }
+    html += `<div class="wizCard">
+      <b>第 1 步：安装 / 启动 Windows Apple 驱动服务</b>
+      <div style="color:var(--sub);margin:6px 0 10px">iPhone 免越狱定位必须依赖 Apple 官方的 <code>Apple Mobile Device Service</code>（仅需安装一次，约 50MB）。</div>`;
+    if (!dev.usbmux_ok) {
+      if (amds.installed && !amds.running && hasNativeApi()) {
+        html += `<button class="btn" style="width:100%;margin-bottom:8px" onclick="wizAction('startAmds')">一键启动服务（需要管理员确认）</button>`;
+      }
+      if (hasNativeApi()) {
+        html += `<div class="btnGrid two" style="margin-top:0">
+          <button class="btn" onclick="wizAction('installDriver')">一键安装 Apple 驱动 (winget)</button>
+          <button class="btn ghost" onclick="wizAction('openStore')">打开微软商店「Apple 设备」</button>
+        </div>`;
+      }
+      html += `<div class="codeLine" style="margin-top:10px">
+        <span style="flex:1">winget install Apple.AppleMobileDeviceSupport</span>
+        <button class="iconBtn" onclick="copyCmd('winget install Apple.AppleMobileDeviceSupport', this)">复制</button>
+      </div>`;
+    }
+    html += `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px">
+      <span style="flex:1;font-size:12px;color:var(--sub)">${dev.mock_mode ? '当前处于虚拟 iPhone 演练模式，拿到真机后点右侧切回：' : '暂时没带 iPhone 或未装驱动？可先开虚拟设备完整体验：'}</span>
+      <button class="iconBtn" onclick="wizAction('toggleMock')">${dev.mock_mode ? '切回真机模式' : '🎭 开启虚拟演练'}</button>
+    </div>`;
+    html += `</div>`;
+  } else if (wizStep === 1) {
+    if (done[1]) {
+      html += `<div class="wizStatus ok">✓ 已连接并信任：${d0.name}（${d0.model || 'iPhone'} · iOS ${d0.ios_version}）</div>`;
+    } else if (d0 && !d0.paired) {
+      html += `<div class="wizStatus warn">⚠ 已发现 ${d0.name}，但手机尚未完成「信任此电脑」配对</div>`;
+    } else {
+      html += `<div class="wizStatus err">✕ 暂未扫描到已插线的 iPhone</div>`;
+    }
+    html += `<div class="wizCard">
+      <b>第 2 步：数据线连接 iPhone 并点击「信任」</b>
+      <ol style="margin:8px 0 10px;padding-left:18px;color:var(--sub);line-height:1.85">
+        <li>用稳定数据线连接电脑（尽量插主板/机身原生 USB 口，少用松动转接坞）</li>
+        <li>解锁 iPhone 屏幕，看到「要信任此电脑吗？」时点击 <b style="color:var(--txt)">信任</b> 并输入锁屏密码</li>
+        <li>若没自动弹出信任提示，可点下方按钮主动向手机发送配对请求</li>
+      </ol>
+      <button class="btn" style="width:100%" onclick="wizAction('pair')">发送配对 / 信任请求到 iPhone</button>
+    </div>`;
+  } else if (wizStep === 2) {
+    if (dev.connected) {
+      html += `<div class="wizStatus ok">✓ 安全隧道与定位通道已连通（${dev.tunnel_mode}），可直接注入定位！</div>`;
+    } else if (d0 && d0.dev_mode === false) {
+      html += `<div class="wizStatus warn">⚠ ${d0.name} 尚未开启「开发者模式」</div>`;
+    } else if (d0 && d0.paired) {
+      html += `<div class="wizStatus ok">✓ 开发者模式已开启，建议点下方按钮试通一次安全隧道</div>`;
+    } else {
+      html += `<div class="wizStatus warn">⚠ 请先完成第 2 步连接并信任 iPhone</div>`;
+    }
+    html += `<div class="wizCard">
+      <b>第 3 步：打开「开发者模式」并测试定位隧道</b>
+      <ol style="margin:8px 0 10px;padding-left:18px;color:var(--sub);line-height:1.85">
+        <li>在 iPhone 打开 <b style="color:var(--txt)">设置 → 隐私与安全性 → 开发者模式</b>，打开开关并按提示重启一次</li>
+        <li>若设置底部看不到「开发者模式」入口，先点下方第一个按钮将其显示出来</li>
+        <li>重启解锁后点「一键测试安全定位隧道」，软件会自动拉起免管理员隧道并按需挂载开发者镜像</li>
+      </ol>
+      <div class="btnGrid two" style="margin-top:0">
+        <button class="btn ghost" onclick="wizAction('revealDev')">显示开发者模式开关</button>
+        <button class="btn" onclick="wizAction('testTunnel')">一键测试安全定位隧道</button>
+      </div>
+      <div class="btnGrid two">
+        <button class="btn ghost" onclick="wizAction('enableWifi')">顺便开启 Wi-Fi 无线调试</button>
+        <button class="btn ghost" onclick="wizAction('disconnect')">断开测试连接</button>
+      </div>
+    </div>`;
+  } else if (wizStep === 3) {
+    const primaryUrl = wizNet && wizNet.urls && wizNet.urls[0] ? wizNet.urls[0].url : location.origin;
+    const fw = (wizNet && wizNet.firewall) || {};
+    html += `<div class="wizStatus ${fw.ok ? 'ok' : 'warn'}">${fw.ok ? '✓ 局域网端口已放行，手机可直接扫码控制' : '⚠ 检测到防火墙可能拦截局域网手机访问（若只在电脑上点控制可跳过此步）'}</div>`;
+    html += `<div class="wizCard">
+      <b>第 4 步：手机 Safari 扫码遥控（可选）</b>
+      <div class="qrWrap" style="margin-top:8px">
+        <img id="wizQrImg" src="/api/qr.svg?url=${encodeURIComponent(primaryUrl)}" style="width:108px;height:108px;border-radius:10px;background:#fff;flex-shrink:0" />
+        <div style="flex:1;min-width:0;font-size:12px">
+          <div><b>手机同 Wi-Fi 扫码或 Safari 打开：</b></div>
+          <div style="margin:4px 0"><a href="${primaryUrl}" target="_blank" style="color:var(--acc2);font-weight:700;text-decoration:none">${primaryUrl}</a></div>
+          <div style="color:var(--sub)">Safari 底部「分享 → 添加到主屏幕」可像原生 App 一样全屏操作</div>
+          ${(!fw.ok && hasNativeApi()) ? `<button class="iconBtn" style="margin:8px 0 0 0" onclick="wizAction('fwUac')">一键放行端口 (管理员)</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="wizStatus ${done[0] && done[1] && done[2] ? 'ok' : 'warn'}">${done[0] && done[1] && done[2] ? '✓ 所有系统前置已就绪！跑前核对以下 4 项即可开始' : '⚠ 前面仍有未完成项（不影响先画路线，开始注入前再补齐即可）'}</div>`;
+    const items = [
+      '<b>关掉手机 Wi-Fi</b>：改用 4G/5G 流量，并强杀支付宝重开，防止高德 SDK 自采周围 Wi-Fi 反查真实定位。',
+      '<b>保持连接不休眠</b>：模拟期间勿拔数据线；建议将 iPhone 自动锁定调长，防止后台休眠断隧道。',
+      '<b>配速与终点锁定</b>：建议 2.4–3.3 m/s（校内有效约 3\'30"–10\'00"/km）；达到目标里程会锁定在终点，等支付宝结束运动再点「恢复真实定位」。',
+      '<b>步频需真实运动</b>：iOS 调试通道不伪造步频传感器，跑步时人需随身真实晃动/走动产生步数。'
+    ];
+    items.forEach((txt, i) => {
+      html += `<label class="chkRow"><input type="checkbox" ${wizChecklist[i] ? 'checked' : ''} onchange="wizChecklist[${i}]=this.checked" /><span>${txt}</span></label>`;
+    });
+    html += `<div class="btnGrid two" style="margin-top:10px">
+      <button class="btn ghost" onclick="wizAction('testPinCampus')">测试：定位到学校中心</button>
+      <button class="btn ghost" onclick="wizAction('restoreReal')">恢复真实定位</button>
+    </div>`;
+  }
+
+  if (wizFeedback) {
+    html += `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(56,163,255,.12);color:var(--acc2);font-size:12px">${wizFeedback}</div>`;
+  }
+  if (html !== lastWizHtml) {
+    lastWizHtml = html;
+    $('wizBody').innerHTML = html;
+  }
+  $('wizPrevBtn').disabled = wizStep === 0;
+  $('wizNextBtn').textContent = wizStep === 4 ? '完成，去画路线' : '下一步';
+}
+
+async function wizAction(act){
+  wizBusy = true;
+  wizFeedback = '处理中…';
+  renderWizard();
+  try {
+    if (act === 'installDriver' && hasNativeApi()) {
+      const r = await callHostAction('install_driver');
+      wizFeedback = r.ok ? '已弹出安装终端，完成后回到这里稍等几秒或点「刷新检测」。' : (r.error || '启动安装失败');
+    } else if (act === 'startAmds' && hasNativeApi()) {
+      const r = await callHostAction('start_amds');
+      wizFeedback = r.ok ? '已请求启动服务，正在刷新状态…' : (r.error || '启动失败');
+    } else if (act === 'openStore' && hasNativeApi()) {
+      await callHostAction('open_store');
+      wizFeedback = '已打开微软商店，请安装「Apple 设备」后点刷新检测。';
+    } else if (act === 'pair') {
+      const r = await api('/api/pair');
+      wizFeedback = r.message || (r.ok ? '已配对' : '配对未完成');
+    } else if (act === 'revealDev') {
+      const r = await api('/api/reveal_dev_mode');
+      wizFeedback = r.message || (r.ok ? '已处理' : '失败');
+    } else if (act === 'testTunnel') {
+      wizFeedback = '正在建立安全隧道并检测 DVT 定位通道（约 3–15 秒）…';
+      renderWizard();
+      const r = await api('/api/connect');
+      wizFeedback = r.ok ? '✓ 安全隧道打通成功，iPhone 定位通道已就绪！' : ('连接失败：' + (r.error || '未知错误'));
+    } else if (act === 'enableWifi') {
+      const r = await api('/api/enable_wifi');
+      wizFeedback = r.message || (r.ok ? '已开启' : '失败');
+    } else if (act === 'disconnect') {
+      applyStatus(await api('/api/disconnect'));
+      wizFeedback = '已安全断开隧道并恢复真实定位。';
+    } else if (act === 'fwUac' && hasNativeApi()) {
+      await callHostAction('firewall');
+      wizFeedback = '已触发防火墙放行，稍候刷新状态…';
+      setTimeout(async () => { wizNet = await api('/api/netinfo').catch(()=>wizNet); renderWizard(); }, 1500);
+    } else if (act === 'testPinCampus') {
+      const r = await api('/api/pin', {lat: CAMPUS[0], lng: CAMPUS[1]});
+      applyStatus(r);
+      wizFeedback = '已尝试将 iPhone 定位锁定到学校中心，请打开手机地图核对位置！';
+    } else if (act === 'restoreReal') {
+      const r = await api('/api/clear');
+      applyStatus(r);
+      wizFeedback = '已清除模拟，iPhone 已恢复真实 GPS。';
+    } else if (act === 'toggleMock') {
+      const next = !(curState.device && curState.device.mock_mode);
+      const r = await api('/api/mock?enabled=' + (next ? '1' : '0'));
+      if (r.status) applyStatus(r.status);
+      wizFeedback = next ? '已开启虚拟 iPhone 演练模式，全部步骤可直接测试！' : '已切回真机模式。';
+    }
+  } catch (e) {
+    wizFeedback = '操作异常：' + e;
+  } finally {
+    wizBusy = false;
+  }
+  const d = await api('/api/device').catch(()=>null);
+  if (d) { curState.device = d; applyStatus(curState); }
+  renderWizard();
+}
+
+document.querySelectorAll('#wizTabs .wizTab').forEach(tab => {
+  tab.onclick = () => { wizStep = Number(tab.dataset.step); wizFeedback = ''; renderWizard(); };
+});
+$('wizReprobeBtn').onclick = async () => {
+  wizFeedback = '正在刷新检测…';
+  renderWizard();
+  curState.device = await api('/api/device').catch(()=>curState.device);
+  wizNet = await api('/api/netinfo').catch(()=>wizNet);
+  wizFeedback = '';
+  renderWizard();
+};
+$('wizPrevBtn').onclick = () => { if (wizStep > 0) { wizStep--; wizFeedback = ''; renderWizard(); } };
+$('wizNextBtn').onclick = () => {
+  if (wizStep < 4) { wizStep++; wizFeedback = ''; renderWizard(); return; }
+  localStorage.setItem('tsur.ios.wizardDone', '1');
+  if ($('wizDontAuto').checked) localStorage.setItem('tsur.ios.wizardHide', '1');
+  else localStorage.removeItem('tsur.ios.wizardHide');
+  $('wizardModal').classList.remove('show');
+  stopWizPoll();
+};
+$('wizDontAuto').onchange = () => {
+  if ($('wizDontAuto').checked) localStorage.setItem('tsur.ios.wizardHide', '1');
+  else localStorage.removeItem('tsur.ios.wizardHide');
+};
+$('mockToggleBtn').onclick = async () => {
+  const next = !(curState.device && curState.device.mock_mode);
+  const r = await api('/api/mock?enabled=' + (next ? '1' : '0'));
+  if (r.status) applyStatus(r.status);
+};
+
+$('preConnectBtn').onclick = async () => {
+  $('preConnectBtn').disabled = true; $('preConnectBtn').textContent = '连接中…';
+  const r = await api('/api/connect');
+  $('preConnectBtn').disabled = false; $('preConnectBtn').textContent = '预建立安全隧道';
+  if (!r.ok) alert(r.error || '连接失败');
+  refreshDoctor();
+};
+$('revealDevBtn').onclick = async () => {
+  const r = await api('/api/reveal_dev_mode');
+  alert(r.message || (r.ok ? '已处理' : '失败'));
+};
+$('enableWifiBtn').onclick = async () => {
+  const r = await api('/api/enable_wifi');
+  alert(r.message || (r.ok ? '已开启' : '失败'));
+};
+$('disconnectBtn').onclick = async () => { applyStatus(await api('/api/disconnect')); refreshDoctor(); };
+$('fwFixBtn').onclick = async () => {
+  if (hasNativeApi()) {
+    await callHostAction('firewall');
+    setTimeout(refreshDoctor, 1500);
+  }
+};
+
+/* ---------- 主题与外观设置 ---------- */
+function applyTheme(t){
+  document.body.classList.toggle('light', t === 'light');
+  document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  localStorage.setItem('tsur.ios.theme', t);
+}
+applyTheme(localStorage.getItem('tsur.ios.theme') || 'dark');
+document.querySelectorAll('#themeSeg button').forEach(b => b.onclick = () => applyTheme(b.dataset.t));
+document.querySelectorAll('#mapSeg button').forEach(b => b.onclick = () => applyMapMode(b.dataset.m));
+document.querySelectorAll('#bdSeg button').forEach(b => b.onclick = () => {
+  alignBaidu = b.dataset.b === '1';
+  localStorage.setItem('tsur.ios.baidu', alignBaidu ? '1' : '0');
+  document.querySelectorAll('#bdSeg button').forEach(x => x.classList.toggle('on', x === b));
+  redrawMap(false);
+});
+document.querySelectorAll('#bdSeg button').forEach(x => x.classList.toggle('on', (x.dataset.b === '1') === alignBaidu));
+
+/* ---------- 移动端抽屉折叠 ---------- */
+$('grip').onclick = () => $('panel').classList.toggle('collapsed');
+
+/* ---------- 初始化与轮询同步 ---------- */
+async function poll(){
+  try {
+    const st = await api('/api/status');
+    applyStatus(st);
+    // 若另一端（如手机/电脑）修改了路线，在未操作时同步到本地地图
+    if (!isDraggingMarker && !pendingSave && st.route_ver && st.route_ver !== localRouteVer) {
+      localRouteVer = st.route_ver;
+      const r = await api('/api/route');
+      if (r.points) {
+        points = r.points;
+        redrawMap(false);
+      }
+    }
+  } catch (e) { $('statusMsg').textContent = '服务连接中断'; }
+}
+
+async function init(){
+  try {
+    const r = await api('/api/route');
+    if (r.points && r.points.length) points = r.points;
+    if (r.presets) { presets = r.presets; renderPresets(); }
+    curState.loop = r.loop || 'pingpong';
+    redrawMap(false);
+    if (points.length) map.fitBounds(L.latLngBounds(points), {padding:[50,50]});
+  } catch (e) {}
+  const st0 = await api('/api/status').catch(()=>null);
+  if (st0) {
+    if (st0.route_ver) localRouteVer = st0.route_ver;
+    applyStatus(st0);
+  }
+  window.TSURSPORT_READY = true;
+  setInterval(poll, 1000);
+
+  // 首次启动或驱动未就绪时自动弹出上手引导
+  const hideWiz = localStorage.getItem('tsur.ios.wizardHide') === '1';
+  const doneWiz = localStorage.getItem('tsur.ios.wizardDone') === '1';
+  const amdsRunning = Boolean(st0 && st0.device && st0.device.amds && st0.device.amds.running);
+  const usbmuxOk = Boolean(st0 && st0.device && (st0.device.usbmux_ok === true || amdsRunning));
+  if (IS_DESKTOP && !hideWiz && (!doneWiz || !usbmuxOk)) {
+    setTimeout(() => openWizard(), 350);
+  }
+}
+init();
+</script>
+</body>
+</html>

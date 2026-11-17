@@ -61,6 +61,13 @@ Tsursport iOS 就是这套东西的图形界面：选路线、定配速、开始
 已内置 Python 运行时与全部依赖，**不需要预装 Python**。
 卸载走「设置 → 应用 → Tsursport iOS」。
 
+### 方式三：winget（清单已提交，审核通过后可用）
+
+```powershell
+winget install LinYiZhiYao.Tsursport-iOS
+```
+
+无 SmartScreen 提示、无需手动解压。清单与提交流程见 [winget/README.md](winget/README.md)。
 ## 首次连接 iPhone
 
 ```

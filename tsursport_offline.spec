@@ -8,6 +8,8 @@
 from PyInstaller.utils.hooks import collect_data_files
 
 hiddenimports = [
+    "pytun_pmd3",
+    "pytun_pmd3.wintun",
     "webview",
     "webview.platforms.edgechromium",
     "webview.platforms.winforms",
@@ -37,6 +39,7 @@ datas = [
 ]
 datas += collect_data_files("webview")
 datas += collect_data_files("pymobiledevice3")
+datas += collect_data_files("pytun_pmd3", include_py_files=False)
 
 a = Analysis(
     ["tsursport_gui.py"],

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="Tsursport iOS"
+      Manufacturer="LinYiZhiYao"
+      Version="1.0.1"
+      UpgradeCode="A7C31B54-9E42-4E2B-8F77-2C1D6E5B3A90"
+      Scope="perUser"
+      Compressed="yes"
+      InstallerVersion="500">
+
+    <MajorUpgrade DowngradeErrorMessage="已安装更新版本的 Tsursport iOS，请先卸载后再安装旧版本。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="tsursport.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Tsursport-iOS" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="6B1F7A20-31C4-4D58-9A62-7E0B2D9C4F13">
+        <Shortcut Id="SMShortcut"
+                  Name="Tsursport iOS"
+                  Description="免越狱 iPhone 定位模拟控制台"
+                  Target="[INSTALLFOLDER]Tsursport-iOS.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RemoveFolder Id="RemoveStartMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\LinYiZhiYao\Tsursport-iOS"
+                       Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="C4E8D2A6-5F91-4B37-8D05-3A6F1C9E7B42">
+        <Shortcut Id="DeskShortcut"
+                  Name="Tsursport iOS"
+                  Description="免越狱 iPhone 定位模拟控制台"
+                  Target="[INSTALLFOLDER]Tsursport-iOS.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\LinYiZhiYao\Tsursport-iOS"
+                       Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Tsursport iOS" Level="1">
+      <ComponentGroupRef Id="PayloadComponents" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="PayloadComponents" Directory="INSTALLFOLDER">
+      <Files Include="payload\**" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>
